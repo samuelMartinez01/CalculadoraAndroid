@@ -63,9 +63,8 @@
 
         <Button
             style="@style/buttonNumber"
-
+            android:onClick="backSpaceAction"
             android:text="⌫"
-
             android:textColor="@color/red" />
 
         <Button

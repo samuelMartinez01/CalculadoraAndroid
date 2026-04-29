@@ -37,145 +37,142 @@ class MainActivity : AppCompatActivity() {
         workingsTV = findViewById(R.id.workingsTV)
     }
 
-    fun equalsAction(view: View)
-    {
+    /**
+     * Punto de entrada para el cálculo.
+     * Primero parseamos la string a una lista de tokens (números y operadores)
+     * y luego aplicamos la jerarquía de operaciones.
+     */
+    fun equalsAction(view: View) {
         resultTV.text = calculatorResults()
     }
 
-    private fun calculatorResults(): String
-    {
-        val digitsOperator = digitOperators()
-        if (digitsOperator.isEmpty()) return ""
+    private fun calculatorResults(): String {
+        val tokens = digitOperators()
+        if (tokens.isEmpty()) return ""
 
-        val timeDivision = timeDivisionCalculate(digitsOperator)
-        if (timeDivision.isEmpty()) return ""
+        // Prioridad 1: Multiplicación y División
+        val afterMultiDiv = timeDivisionCalculate(tokens)
+        if (afterMultiDiv.isEmpty()) return ""
 
-        val result = addSubtractCalculate(timeDivision)
+        // Prioridad 2: Suma y Resta
+        val finalResult = addSubtractCalculate(afterMultiDiv)
 
-        return result.toString()
+        return formatoDecimal.format(finalResult)
     }
 
-    private fun addSubtractCalculate(passedList: MutableList<Any>): Float
-    {
+    private fun addSubtractCalculate(passedList: MutableList<Any>): Float {
         var result = passedList[0] as Float
 
-        for(i in passedList.indices)
-        {
-            if(passedList[i] is Char && i != passedList.lastIndex)
-            {
+        for (i in passedList.indices) {
+            if (passedList[i] is Char && i != passedList.lastIndex) {
                 val operator = passedList[i]
                 val nextDigit = passedList[i + 1] as Float
-                if (operator == '+')
-                    result += nextDigit
-                if (operator == '-')
-                    result -= nextDigit
+                when (operator) {
+                    '+' -> result += nextDigit
+                    '-' -> result -= nextDigit
+                }
             }
         }
-
         return result
     }
 
     private fun timeDivisionCalculate(passedList: MutableList<Any>): MutableList<Any> {
         var list = passedList
-        while (list.contains('x') || list.contains('/'))
-        {
+        // Procesamos hasta que no queden operadores de alta prioridad
+        while (list.any { it is Char && (it.lowercaseChar() == 'x' || it == '/') }) {
             list = calcTimesDiv(list)
         }
-
         return list
     }
 
     private fun calcTimesDiv(passedList: MutableList<Any>): MutableList<Any> {
         val newList = mutableListOf<Any>()
-        var restartIndex = passedList.size
-        for (i in passedList.indices)
-        {
+        var skipNext = false
 
-            if(passedList[i] is Char && i != passedList.lastIndex && i < restartIndex)
-            {
-                val operator = passedList[i]
-                val prevDigit = passedList[i - 1] as Float
-                val nextDigit = passedList[i + 1] as Float
-                when(operator)
-                {
-                    'x' ->
-                    {
-                        newList.add(prevDigit * nextDigit)
-                        restartIndex = i + 1
-                    }
-                    '/' ->
-                    {
-                        newList.add(prevDigit / nextDigit)
-                        restartIndex = i + 1
-                    }
-                    else ->
-                    {
-                        newList.add(prevDigit)
-                        newList.add(operator)
-                    }
-                }
+        for (i in passedList.indices) {
+            if (skipNext) {
+                skipNext = false
+                continue
             }
 
-            if(i > restartIndex)
-                newList.add(passedList[i])
-
-
+            val current = passedList[i]
+            if (current is Char && (current.lowercaseChar() == 'x' || current == '/')) {
+                // Sacamos el último número agregado para operarlo con el siguiente
+                val prevDigit = newList.removeAt(newList.size - 1) as Float
+                val nextDigit = passedList[i + 1] as Float
+                
+                val result = if (current.lowercaseChar() == 'x') prevDigit * nextDigit else prevDigit / nextDigit
+                newList.add(result)
+                skipNext = true
+            } else {
+                newList.add(current)
+            }
         }
         return newList
     }
 
-    private fun digitOperators(): MutableList<Any>
-    {
+    /**
+     * Convierte el texto del display en una lista tipada.
+     * Separamos los operandos de los operadores para facilitar el procesamiento.
+     */
+    private fun digitOperators(): MutableList<Any> {
         val list = mutableListOf<Any>()
         var currentDigit = ""
-        for (character in workingsTV.text)
-            if (character.isDigit() || character == '.')
+        
+        for (character in workingsTV.text) {
+            if (character.isDigit() || character == '.') {
                 currentDigit += character
-            else
-            {
-                list.add(currentDigit.toFloat())
-                currentDigit = ""
+            } else {
+                // Si encontramos un operador, guardamos el número acumulado y luego el operador
+                if (currentDigit.isNotEmpty()) {
+                    list.add(currentDigit.toFloat())
+                    currentDigit = ""
+                }
                 list.add(character)
             }
-        if (currentDigit != "")
+        }
+        
+        if (currentDigit.isNotEmpty()) {
             list.add(currentDigit.toFloat())
+        }
         return list
     }
 
-    fun numberAction(view: View)
-    {
+    fun numberAction(view: View) {
         if (view is Button) {
-            if(view.text == ".") {
-                if(canAddDecimal)
+            if (view.text == ".") {
+                if (canAddDecimal) {
                     workingsTV.append(view.text)
-                canAddOperation = false
-            }
-            else
+                    canAddDecimal = false // Evitamos doble punto en un mismo número
+                }
+            } else {
                 workingsTV.append(view.text)
-
+            }
             canAddOperation = true
         }
     }
-    fun operationAction(view: View)
-    {
+
+    fun operationAction(view: View) {
         if (view is Button && canAddOperation) {
             workingsTV.append(view.text)
             canAddOperation = false
-            canAddDecimal = true
+            canAddDecimal = true // Al cambiar de operando, reseteamos el permiso del punto
         }
     }
-    fun allClearAction(view: View)
-    {
+
+    fun allClearAction(view: View) {
         workingsTV.text = ""
         resultTV.text = ""
+        canAddOperation = false
+        canAddDecimal = true
     }
-    fun backSpaceAction(view: View)
-    {
+
+    fun backSpaceAction(view: View) {
         val length = workingsTV.length()
         if (length > 0) {
-            workingsTV.text = workingsTV.text.subSequence(0, length - 1) // eliminar una letra
+            workingsTV.text = workingsTV.text.subSequence(0, length - 1)
         }
-        }
+    }
 
 
 
