@@ -1,0 +1,33 @@
+*.iml
+.gradle/
+local.properties
+
+# Android Studio
+/.idea/
+
+# Mac OS
+.DS_Store
+
+# Build folders
+/build/
+*/build/
+
+# NDK
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# APKs and App Bundles
+*.apk
+*.ap_
+*.aab
+
+# Keystores
+*.jks
+*.keystore
+
+# Log files
+*.log
+
+# Config files
+google-services.json
