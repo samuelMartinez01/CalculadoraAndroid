@@ -144,11 +144,14 @@ class MainActivity : AppCompatActivity() {
                 if (canAddDecimal) {
                     workingsTV.append(view.text)
                     canAddDecimal = false // Evitamos doble punto en un mismo número
+                    resultTV.text=""
                 }
             } else {
                 workingsTV.append(view.text)
+                resultTV.text=""
             }
             canAddOperation = true
+            resultTV.text=""
         }
     }
 
@@ -157,6 +160,7 @@ class MainActivity : AppCompatActivity() {
             workingsTV.append(view.text)
             canAddOperation = false
             canAddDecimal = true // Al cambiar de operando, reseteamos el permiso del punto
+            resultTV.text=""
         }
     }
 
@@ -168,9 +172,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun backSpaceAction(view: View) {
+        val text=workingsTV.text.toString()
         val length = workingsTV.length()
         if (length > 0) {
+        val lastChar=text[length-1]
+            when{
+                lastChar == '.'->{
+                canAddDecimal=true
+                }
+                lastChar == '+' || lastChar == '-' || lastChar == 'X' || lastChar == '/' -> {
+                    canAddOperation = true
+                }
+            }
+
             workingsTV.text = workingsTV.text.subSequence(0, length - 1)
+            resultTV.text=""
         }
     }
 
