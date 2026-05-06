@@ -23,18 +23,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val binding = ActivityMainBinding.inflate(this.layoutInflater)
+        binding = ActivityMainBinding.inflate(this.layoutInflater)
         setContentView(binding.root)
         enableEdgeToEdge()
-        setContentView(R.layout.activity_main)
+        
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
         formatoDecimal = DecimalFormat("#.##########")
-        resultTV = findViewById(R.id.resultsTV)
-        workingsTV = findViewById(R.id.workingsTV)
+        resultTV = binding.resultsTV
+        workingsTV = binding.workingsTV
     }
 
     /**
@@ -57,7 +57,12 @@ class MainActivity : AppCompatActivity() {
         // Prioridad 2: Suma y Resta
         val finalResult = addSubtractCalculate(afterMultiDiv)
 
-        return formatoDecimal.format(finalResult)
+        // Validación de errores matemáticos (NaN o Infinito)
+        return when {
+            finalResult.isNaN() -> "Error"
+            finalResult.isInfinite() -> "Math Error"
+            else -> formatoDecimal.format(finalResult)
+        }
     }
 
     private fun addSubtractCalculate(passedList: MutableList<Any>): Float {
@@ -144,11 +149,9 @@ class MainActivity : AppCompatActivity() {
                 if (canAddDecimal) {
                     workingsTV.append(view.text)
                     canAddDecimal = false // Evitamos doble punto en un mismo número
-                    resultTV.text=""
                 }
             } else {
                 workingsTV.append(view.text)
-                resultTV.text=""
             }
             canAddOperation = true
             resultTV.text=""
@@ -189,7 +192,4 @@ class MainActivity : AppCompatActivity() {
             resultTV.text=""
         }
     }
-
-
-
 }
