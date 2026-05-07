@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         enableEdgeToEdge()
         
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(binding.main) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
@@ -37,41 +37,103 @@ class MainActivity : AppCompatActivity() {
         workingsTV = binding.workingsTV
     }
 
-    /**
-     * Punto de entrada para el cálculo.
-     * Primero parseamos la string a una lista de tokens (números y operadores)
-     * y luego aplicamos la jerarquía de operaciones.
-     */
     fun equalsAction(view: View) {
-        resultTV.text = calculatorResults()
-    }
-
-    private fun calculatorResults(): String {
-        val tokens = digitOperators()
-        if (tokens.isEmpty()) return ""
-
-        // Prioridad 1: Multiplicación y División
-        val afterMultiDiv = timeDivisionCalculate(tokens)
-        if (afterMultiDiv.isEmpty()) return ""
-
-        // Prioridad 2: Suma y Resta
-        val finalResult = addSubtractCalculate(afterMultiDiv)
-
-        // Validación de errores matemáticos (NaN o Infinito)
-        return when {
-            finalResult.isNaN() -> "Error"
-            finalResult.isInfinite() -> "Math Error"
-            else -> formatoDecimal.format(finalResult)
+        val result = calculatorResults()
+        if (result.isNotEmpty()) {
+            resultTV.text = result
         }
     }
 
+    private fun calculatorResults(): String {
+        val text = workingsTV.text.toString()
+        if (text.isEmpty()) return ""
+
+        if (!isExpressionValid(text)) return "Error"
+
+        try {
+            val tokens = digitOperators()
+            if (tokens.isEmpty()) return ""
+
+            // Resolvemos paréntesis recursivamente
+            val finalResult = evaluate(tokens)
+
+            return when {
+                finalResult.isNaN() -> "Error"
+                finalResult.isInfinite() -> "Infinito"
+                else -> formatoDecimal.format(finalResult)
+            }
+        } catch (e: Exception) {
+            return "Error"
+        }
+    }
+
+    private fun isExpressionValid(expression: String): Boolean {
+        // 1. Balance de paréntesis
+        var balance = 0
+        for (c in expression) {
+            if (c == '(') balance++
+            if (c == ')') balance--
+            if (balance < 0) return false
+        }
+        if (balance != 0) return false
+
+        // 2. No puede terminar en operador o '('
+        val last = expression.last()
+        if (last == '(' || last == '+' || last == '-' || last.lowercaseChar() == 'x' || last == '/' || last == '.') {
+            return false
+        }
+
+        // 3. No puede haber paréntesis vacíos "()"
+        if (expression.contains("()")) return false
+
+        return true
+    }
+
+    private fun evaluate(tokens: MutableList<Any>): Float {
+        var list = tokens.toMutableList()
+        
+        // Mientras haya paréntesis de apertura, resolvemos el más interno primero
+        while (list.contains('(')) {
+            val openIndex = list.lastIndexOf('(')
+            // Buscamos el cierre correspondiente después de ese índice
+            var closeIndex = -1
+            for (i in openIndex + 1 until list.size) {
+                if (list[i] == ')') {
+                    closeIndex = i
+                    break
+                }
+            }
+            
+            if (closeIndex == -1) throw Exception("Paréntesis sin cerrar")
+
+            val subList = list.subList(openIndex + 1, closeIndex).toMutableList()
+            val result = calculateSimple(subList)
+            
+            // Reemplazamos el bloque "(...)" por el número resultante
+            val newList = mutableListOf<Any>()
+            newList.addAll(list.subList(0, openIndex))
+            newList.add(result)
+            newList.addAll(list.subList(closeIndex + 1, list.size))
+            list = newList
+        }
+        
+        return calculateSimple(list)
+    }
+
+    private fun calculateSimple(passedList: MutableList<Any>): Float {
+        if (passedList.isEmpty()) return 0f
+        val afterMultiDiv = timeDivisionCalculate(passedList)
+        return addSubtractCalculate(afterMultiDiv)
+    }
+
     private fun addSubtractCalculate(passedList: MutableList<Any>): Float {
-        var result = passedList[0] as Float
+        if (passedList.isEmpty()) return 0f
+        var result = if (passedList[0] is Float) passedList[0] as Float else throw Exception("Sintaxis")
 
         for (i in passedList.indices) {
             if (passedList[i] is Char && i != passedList.lastIndex) {
                 val operator = passedList[i]
-                val nextDigit = passedList[i + 1] as Float
+                val nextDigit = passedList[i + 1] as? Float ?: throw Exception("Sintaxis")
                 when (operator) {
                     '+' -> result += nextDigit
                     '-' -> result -= nextDigit
@@ -82,8 +144,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun timeDivisionCalculate(passedList: MutableList<Any>): MutableList<Any> {
-        var list = passedList
-        // Procesamos hasta que no queden operadores de alta prioridad
+        var list = passedList.toMutableList()
         while (list.any { it is Char && (it.lowercaseChar() == 'x' || it == '/') }) {
             list = calcTimesDiv(list)
         }
@@ -102,11 +163,15 @@ class MainActivity : AppCompatActivity() {
 
             val current = passedList[i]
             if (current is Char && (current.lowercaseChar() == 'x' || current == '/')) {
-                // Sacamos el último número agregado para operarlo con el siguiente
+                if (newList.isEmpty() || newList.last() !is Float) throw Exception("Sintaxis")
                 val prevDigit = newList.removeAt(newList.size - 1) as Float
+                
+                if (i + 1 >= passedList.size || passedList[i + 1] !is Float) throw Exception("Sintaxis")
                 val nextDigit = passedList[i + 1] as Float
                 
-                val result = if (current.lowercaseChar() == 'x') prevDigit * nextDigit else prevDigit / nextDigit
+                val result = if (current.lowercaseChar() == 'x') prevDigit * nextDigit else {
+                    if (nextDigit == 0f) Float.NaN else prevDigit / nextDigit
+                }
                 newList.add(result)
                 skipNext = true
             } else {
@@ -116,23 +181,28 @@ class MainActivity : AppCompatActivity() {
         return newList
     }
 
-    /**
-     * Convierte el texto del display en una lista tipada.
-     * Separamos los operandos de los operadores para facilitar el procesamiento.
-     */
     private fun digitOperators(): MutableList<Any> {
         val list = mutableListOf<Any>()
         var currentDigit = ""
         
         for (character in workingsTV.text) {
             if (character.isDigit() || character == '.') {
+                // Multiplicación implícita si viene un número tras un ')'
+                if (currentDigit.isEmpty() && list.isNotEmpty() && list.last() == ')') {
+                    list.add('X')
+                }
                 currentDigit += character
             } else {
-                // Si encontramos un operador, guardamos el número acumulado y luego el operador
                 if (currentDigit.isNotEmpty()) {
                     list.add(currentDigit.toFloat())
                     currentDigit = ""
                 }
+                
+                // Multiplicación implícita antes de un '(' si hay un número o ')' previo
+                if (character == '(' && list.isNotEmpty() && (list.last() is Float || list.last() == ')')) {
+                    list.add('X')
+                }
+                
                 list.add(character)
             }
         }
@@ -148,13 +218,13 @@ class MainActivity : AppCompatActivity() {
             if (view.text == ".") {
                 if (canAddDecimal) {
                     workingsTV.append(view.text)
-                    canAddDecimal = false // Evitamos doble punto en un mismo número
+                    canAddDecimal = false
                 }
             } else {
                 workingsTV.append(view.text)
             }
             canAddOperation = true
-            resultTV.text=""
+            resultTV.text = ""
         }
     }
 
@@ -162,8 +232,22 @@ class MainActivity : AppCompatActivity() {
         if (view is Button && canAddOperation) {
             workingsTV.append(view.text)
             canAddOperation = false
-            canAddDecimal = true // Al cambiar de operando, reseteamos el permiso del punto
-            resultTV.text=""
+            canAddDecimal = true
+            resultTV.text = ""
+        }
+    }
+
+    fun parenthesisAction(view: View) {
+        if (view is Button) {
+            workingsTV.append(view.text)
+            resultTV.text = ""
+            // Permitimos operaciones después de un paréntesis de cierre
+            if (view.text == "(") {
+                canAddOperation = false
+                canAddDecimal = true
+            } else {
+                canAddOperation = true
+            }
         }
     }
 
@@ -175,21 +259,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun backSpaceAction(view: View) {
-        val text=workingsTV.text.toString()
         val length = workingsTV.length()
         if (length > 0) {
-        val lastChar=text[length-1]
-            when{
-                lastChar == '.'->{
-                canAddDecimal=true
-                }
-                lastChar == '+' || lastChar == '-' || lastChar == 'X' || lastChar == '/' -> {
-                    canAddOperation = true
-                }
-            }
-
             workingsTV.text = workingsTV.text.subSequence(0, length - 1)
-            resultTV.text=""
+            resultTV.text = ""
+            // Al borrar, reseteamos permisos para no trabar al usuario
+            canAddOperation = true
+            canAddDecimal = true
         }
     }
 }
